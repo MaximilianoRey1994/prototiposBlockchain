@@ -1,0 +1,52 @@
+SEGUNDO PROTOTIPO.
+CARACTERISTICAS:
+
+-En este prototipo no existen las cuentas. Las transacciones tienen como salida UTXOs, los cuales consisten en una clave púlica y un valor. Como entrada poseen UTXOs firmados con su clave privada, los cuales dejan de valer una vez que la transacción tiene efecto. Si un usuario A quiere transferir dinero a B, B tendría que generar un nuevo par público- privado, enviar la clave pública a A, luego A tendría que generar una transacción con uno o varios UTXO cuyas claves privadas conoce, y un UTXO con la clave pública recibida de B como salida. Además, si la suma de los UTXO de entrada supera la cantidad que debe transferir a B, A puede generar un nuevo par público - privado y ponerlo como UTXO de salida en la misma transacción.
+
+Esto tiene dos ventajas, la primera es que las transacciones son menos rastreables, ya en que cada transacción se destruyen y se crean UTXO, pero no es posible saber si cuales de los nuevos UTXO siguen en manos del mismo usuario y cuantos de un usuario distinto (y también podrían existir más de dos usuarios involucrados, e incluso uno solo que está dividiendo un UTXO). La segunda ventaja es que un usuario puede realizar varais transacciones a la vez usando dos UTXO distintos.
+Como desventaja, la Wallet es más compleja porque tiene que almacenar todas las claves privadas de cada UTXO y además se necesita un sistema de comunicación entre Wallets.
+
+- Se prohibe la sincronización rápida, cada nodo debe conocer todos los bloques anteriores para validar un nuevo nodo (y para minarl uno). La idea es que sea imposible levantar mineros tomando unicamente el último nodo, sin verificar toda la cadena, y además forzar a los mineros a tener una copia de todos los bloques para poder responder a los nuevos nodos cuando solicitan esos viejos bloques, pero tal vez las deventajas que estó trae superen las ventajas.
+
+Eso se consigue definiendo el proof of work de la siguiente forma: dado un bloque Bn, cuyo hash es Hn, utilizo los primeros 8 dígitos del Hn para seleccionar un nodo anterior a Bn en su cadena. Luego, tomo ese bloque, concateno los siguientes 8 bytes de Bn al bloque y calculo el hash de dicho conjunto, llamemoslo Hp. Para que un nodo Bn+1 sea aceptado como siguiente a Bn, los primeros x dígitos de su hash deben coincidir con los primeros x de Hp. Por supuesto, un minero puede intentar crear nodos con un hash que le sea favorable para no tener que almacenar todos (en donde los primeros 8 bytes de su hash apunten a un subconjunto de nodos especificos) pero para eso tiene que conseguir un hash que cumpla esa condición y además el prof of work, con lo cual estará en desventaja contra mineros que conozcan todos los nodos.
+
+- Un bloque consiste en un conjunto de transacciones y un UTXO de recompenza para el minero.
+
+- Si hay una diferencia entre la suma de valores de la entrada y de la salida, esta pertenece a los mineros. El valor del UTXO de recompenza es la suma de los fee de las transacciónes del bloque más 5 unidades.
+
+- El discovery todavía no ha sido implementado. El proxy recibe un conjunto de IPs conocidas, y luego se va nutriendo con las IP que se conectan al mismo.
+
+- Para broadcastear mensajes entre sí, los nodos envían paquetes con una id (la cual es una clave pública) un número de paquete enviado y el mensaje, el cual puede ser un bloque, una transacción o un pedido de bloque.
+El sistema verifica por el número de paquete. Si el mensaje ya lo recibió, lo descarta. Si faltan paquetes entre el último recibido con esa id y el paquete recibido, lo almacena para el futuro. Si el paquete es el siguiente al último recibido por esa id lo procesa y lo envía a los otros IP conocidos; luego chequea si posee guardados paquetes que sean concecutivos al mismo para esa ID, y en caso afirmativo también los procesa y reenvía.
+La excepción es si recibe un pedido de bloque, en este caso el sistema no reenvía el mensaje sino que se limita a enviar el bloque al solicitante (el bloque se pide por número de índice y siempre envía un bloque de su cadena más larga).
+
+- Todavía no hay implementado un mecanismo que permita a los nodos unirse en cualquier otro momento, pero se puede alterar el protocolo para conseguir el número actual de bloque de una id.
+
+- El main en el objeto "Node" levanta tres nodos conectados entre sí. Además, levanta dos wallets y una de ellas envía dinero a la otra
+
+- El objeto StateTest testea el agregado de los bloques sin el proof of work (está incompleto)
+
+PRIMER PROTOTIPO.
+CARACTERISTICAS:
+- A diferencia del otro prototipo, en esta blockchain no existen los UTXO, solo existen cuentas. Una cuenta consiste en una id (la cual también es su clave pública). De las transacciones realizadas en la blockchain se puede deducir su monto.
+- Una transacción consiste en un objeto con una dirección de origen, una dirección de destino, monto final para el origen, monto final para el destino, el fee para el minero, el número de transacción y la firma del mensaje por parte de la cuenta de origen. Para que la transacción sea válida, el debe coincidir que: el monto final para el destino - monto anterior de la cuenta destino + fee = monto inicial para el origen - monto final para el origen. Obviamente, el monto fina para el destino tiene que ser superor a su monto inicial.
+
+- El número de transacción es de acuerdo al emisor de la transacción, debe empezar en 0 y aumenta cada vez que una cuenta realiza una transacción siendo el emisor.
+
+- Además, en el bloque existe una transacción extra para el minero del bloque que sólo tiene dirección de destino y el nuevo saldo del destino. Dicho saldo debe ser saldo anterior + fees del bloque + 5
+
+La ventaja de esto es una wallet más sencilla, que sólo debe mantener una clave privada. Además, la wallet de destino no tiene que participar cuando recibe dinero, sino que la wallet que envía dinero interactua unicamente con los nodos de la blockchain.
+La idea de que los montos finales estén en cada transacción es que sólo se deba retroceder en la blockchain hasta encontrar una transacción en donde la cuenta aparezca como origen o destino, pero esto no resultó ser realmente una ventaja, ya que, como mencionaré más adelante, sólo se mantiene en memoria la blockchain con poca profundidad y existen buffers para acceder a la información de estado de las cuentas que de las transacciones que están en disco.
+
+La desventaja, además de que los registros de todas las operaciones de los usuarios están registradas en forma pública en la blockchain, es que existen conflictos si dos usuarios quieren enviar simultaneamente dinero a una cuenta
+
+- En cuanto al proxy, se ha utilizado una versión modificada de la biblioteca scalanet, la cual está incrustada en el código. Lamentablemente, la biblioteca a cambiado en la actualidad y los cambios ya no son compatibles con el nuevo diseño, con lo cual no se ha actualizado.
+
+- El archivo Miner posee un objeto MainObjectMiner que levanta tres mineros que se conectan entre si. Antes que ejecutarlo hay que correr el objeto GenerateGenesis
+
+CARACTERISTICAS GENERALES:
+- Para no tener que recorrer potencialmente toda la blockchain cuando se quiere confirmar su estado, sólo se mantiene en memoria la blockchain hasta determinada profundidad P (deferencia entre el bloque de mayor índice registrado y el bloque con menor índice en memoria). Despues, los bloques son gravados a disco y sólo los de la cadena principal. Si existía alguna rama que se separa de la principal a una distancia mayor que P de la cabeza, dicha branch es borrada. Tampoco se aceptan nuevos bloques que ramifiquen desde un nodo que no esté en memoria. Podemos decir que un bloque se considera "confirmado" por los nodos si está en la cadena principal y existen al menos P bloques posteriores en dicha cadena.
+En el segundo prototipo, el "estado de la blockchain" que debe guardarse en los diccionarios consiste sólo en los UTXOs activos en ese momento. El primer prototipo debe almacenar en cámbio el número de índice de cada cuenta que existe y su saldo, lo cual no lo hace escalable.
+Tengase en cuenta que si bien la profundidad es P, podrían existir muchos más bloques en memoria, ya que pueden existir multiples branch. Sin embargo, si necesito consultar el estado de la cuenta desde cierto bloque, solo debo retroceder como máximo P bloques.
+En los testeos, el nivel de profundidad que se almacena en memoria está seteado en 10.
+
